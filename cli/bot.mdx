@@ -1,0 +1,105 @@
+---
+title: "foks bot"
+description: "Create and use bot tokens for automated deployments and CI/CD."
+---
+
+## Overview
+
+Bot tokens are credentials designed for automated processes — CI/CD pipelines, containers, deploy scripts — that need to authenticate to FOKS without interactive login. A bot token encodes a user's key in a compact, script-friendly string with no spaces or special characters.
+
+```
+foks bot new     # create a new bot token
+foks bot use     # load a bot token into the agent
+```
+
+The command group also has the alias `bot-token`, and `foks bot use` is a synonym for [`foks key use-bot-token`](/cli/device).
+
+## bot new
+
+```
+foks bot new [--role <role>]
+```
+
+Creates a new bot token for the currently logged-in user and prints it. The token is generated with the specified role and tied to the current user's identity.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--role` | `owner` | Role to assign the bot token (`owner`, `admin`, `member`, `member(n)`) |
+
+**Output** — a token in the form `name.key`, for example:
+
+```
+a428e.ABERee949038eEr
+```
+
+The token has no spaces or special characters and is safe to use in shell scripts and environment variables.
+
+<Warning>
+Store bot tokens securely. Anyone with the token can authenticate as the user that created it, at the role specified.
+</Warning>
+
+## bot use
+
+```
+foks bot use --host <host> [--token <token>]
+```
+
+Loads a bot token into the agent and sets it as the active key. The agent then operates as the user who created the token.
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--host` | Yes | FOKS server hostname (e.g., `myorg.foks.app`) |
+| `--token` | No | Bot token string; falls back to `FOKS_BOT_TOKEN` env var, then stdin |
+
+The token is resolved in this order:
+
+1. `--token` flag
+2. `FOKS_BOT_TOKEN` environment variable
+3. Standard input (prompted if neither above is set)
+
+Passing `--token` and `FOKS_BOT_TOKEN` simultaneously is an error.
+
+## Typical CI/CD workflow
+
+**Step 1** — On a developer machine, create the bot token:
+
+```bash
+foks bot new --role member
+```
+
+Copy the printed token and store it as a secret in your CI/CD system (e.g., a GitHub Actions secret or Docker secret).
+
+**Step 2** — In the container or CI job, load the token at startup:
+
+```bash
+# via environment variable (recommended)
+export FOKS_BOT_TOKEN="a428e.ABERee949038eEr"
+foks ctl start
+foks bot use --host myorg.foks.app
+
+# or pass directly
+foks bot use --host myorg.foks.app --token "a428e.ABERee949038eEr"
+```
+
+**Step 3** — Use FOKS normally for the rest of the job:
+
+```bash
+foks git clone foks://myorg.foks.app/myrepo
+foks kv get myns mykey
+```
+
+The bot token remains active for the lifetime of the agent process.
+
+## Roles for bots
+
+Choose the minimum role needed for the bot's task:
+
+| Role | When to use |
+|------|-------------|
+| `owner` | Full account control — use only for privileged automation |
+| `admin` | Can manage team membership |
+| `member` | Read/write access to resources shared at the member level |
+| `member(-1)` | A distinct lower tier within the member band; useful for restricting what the bot can access |
+| `reader` | Read-only |
+
+See [team roles](/cli/team#roles) for a full description of the `member(n)` sub-level system.

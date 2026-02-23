@@ -38,7 +38,8 @@
               "cli/team",
               "cli/device",
               "cli/yubikey",
-              "cli/agent"
+              "cli/agent",
+              "cli/bot"
             ]
           },
           {
