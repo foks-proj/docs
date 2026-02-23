@@ -1,0 +1,223 @@
+---
+title: "foks kv"
+description: "End-to-end encrypted key-value store."
+---
+
+## Overview
+
+The FOKS key-value store lets you store secrets, configuration, and files with end-to-end encryption. The namespace uses a filesystem-like hierarchy with paths like `/secrets/api-key` or `/configs/db.json`.
+
+Data is encrypted on your machine before being sent to the server. The server never sees file names or contents.
+
+## Common flags
+
+Most `kv` subcommands accept these flags:
+
+| Flag | Description |
+|------|-------------|
+| `--team <team>` / `-t <team>` | Act on behalf of a team. Defaults to operating as the logged-in user. |
+| `--mkdir-p` / `-p` | Create parent directories automatically |
+| `--read-role <role>` / `-r` | Minimum role required to read (owner, admin, member, member(n), reader) |
+| `--write-role <role>` / `-w` | Minimum role required to write |
+
+## Commands
+
+### put
+
+```
+foks kv put <key> [<value>] [flags]
+```
+
+Store a value at the given path.
+
+```bash
+# Store a string
+foks kv put /secrets/api-key "mysecret"
+
+# Read value from stdin
+echo "mysecret" | foks kv put /secrets/api-key
+
+# Store a file
+foks kv put /configs/settings.json --file settings.json
+
+# Store for a team
+foks kv put --team myteam /shared/db-password "secret"
+
+# Overwrite an existing entry
+foks kv put /secrets/api-key "newvalue" --force
+
+# Create parent directories automatically
+foks kv put /a/b/c/key "value" --mkdir-p
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--file` / `-f` | Treat the value argument as a filename to read from (use `-` for stdin) |
+| `--force` | Overwrite an existing entry |
+| `--read-role` / `-r` | Read role for the entry |
+| `--write-role` / `-w` | Write role for the entry |
+| `--mkdir-p` / `-p` | Create parent directories |
+
+### get
+
+```
+foks kv get <key> [<output-file>] [flags]
+```
+
+Retrieve a value. If no output file is given (or `-` is given), prints to stdout. If stdout is a terminal and the data appears to be binary, an error is returned.
+
+```bash
+# Print to stdout
+foks kv get /secrets/api-key
+
+# Write to a file
+foks kv get /configs/settings.json settings.json
+
+# Force output to terminal even if binary
+foks kv get /data/binary-blob --force-output
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Overwrite existing output file |
+| `--force-output` | Output to terminal even if data looks binary |
+| `--mode <octal>` | File permissions for the output file (e.g. `0600`) |
+
+### ls
+
+```
+foks kv ls <path> [flags]
+foks kv list <path> [flags]
+```
+
+List the contents of a directory in the key-value store.
+
+```bash
+foks kv ls /secrets
+foks kv ls /secrets -l          # long format with type and timestamp
+foks kv ls /secrets -F          # append '/' to directory names
+foks kv ls /secrets -l -U       # timestamps as Unix milliseconds
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-F` / `--classify` | Append `/` to directory names |
+| `-l` / `--long` | Long format with entry type and modification time |
+| `-U` / `--unix-time` | Print timestamps as Unix milliseconds |
+
+### mkdir
+
+```
+foks kv mkdir <path> [flags]
+```
+
+Create a directory.
+
+```bash
+foks kv mkdir /secrets
+foks kv mkdir /a/b/c --mkdir-p    # create all parents
+```
+
+### rm
+
+```
+foks kv rm <key> [<key2> ...] [flags]
+foks kv remove <key> ...
+foks kv unlink <key> ...
+foks kv delete <key> ...
+```
+
+Remove one or more entries.
+
+```bash
+foks kv rm /secrets/old-key
+foks kv rm /a/b/c -r              # remove a directory recursively
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `-r` / `--recursive` | Remove a directory and all its contents |
+
+### mv
+
+```
+foks kv mv <src> <dst>
+foks kv move <src> <dst>
+foks kv rename <src> <dst>
+```
+
+Move or rename an entry.
+
+```bash
+foks kv mv /secrets/old-name /secrets/new-name
+foks kv mv /secrets /archive/secrets    # move a whole directory
+```
+
+### symlink
+
+```
+foks kv symlink <path> <target>
+foks kv ln <path> <target>
+```
+
+Create a symbolic link within the key-value store.
+
+```bash
+foks kv symlink /current/config /configs/v2/config
+```
+
+### readlink
+
+```
+foks kv readlink <path>
+```
+
+Print the target of a symbolic link.
+
+### get-usage
+
+```
+foks kv get-usage
+foks kv du
+```
+
+Show storage usage for the current user (or team with `--team`).
+
+### rest
+
+```
+foks kv rest start [flags]
+foks kv rest stop
+```
+
+Start a local loopback REST API server for the key-value store. Useful for integrating FOKS with scripts or tools that speak HTTP.
+
+## Roles
+
+Entries and directories have read and write roles. The role hierarchy is:
+
+```
+owner > admin > member(n) > reader
+```
+
+The `member` role carries a signed integer sub-level `n` in the range -16384 to 16384 (default `0`). Sub-levels are linearizable, so `member(1)` is higher privilege than `member(0)`, which is higher than `member(-1)`. Plain `member` is shorthand for `member(0)`.
+
+When you create an entry with `--read-role member`, only team members with the `member(0)` role or higher can decrypt it. To restrict to a higher sub-level, use e.g. `--read-role member(1)`. Write permissions are enforced by the server; read permissions are enforced cryptographically.
+
+## Paths
+
+Paths are Unix-style hierarchical paths starting with `/`. Example:
+
+```
+/secrets/database/production/password
+/configs/nginx.conf
+/shared/certificates/tls.pem
+```

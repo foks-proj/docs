@@ -1,0 +1,102 @@
+---
+title: "Architecture"
+description: "How FOKS processes and components fit together."
+---
+
+## Overview
+
+FOKS is a client-server system where multiple independent servers can federate — much like email or the Web. Users on one server can join teams on another server, and encrypted data can flow across server boundaries.
+
+The system has two main sides: a **client** running on your machine, and a **server** you connect to (either `foks.app` or your own).
+
+## Client Architecture
+
+The client consists of a persistent **agent** and a one-shot **CLI**. This mirrors the design of `ssh-agent`.
+
+```
+  foks (CLI)  ──────┐
+                    │ Unix socket / named pipe
+  git-remote-foks ──┤
+                    │
+              [ foks agent ]
+                    │
+              network (TLS)
+                    │
+              [ FOKS server ]
+```
+
+### The agent
+
+`foks agent` (started via `foks ctl start`) runs in the background and:
+
+- Holds device private keys in memory
+- Maintains an authenticated session with the server
+- Performs background **rekeying** after revocations — when a device or user is removed from a team, all team keys must rotate; the agent handles this automatically
+- Responds to requests from the CLI over a local Unix socket (or Windows named pipe)
+
+### The CLI
+
+The `foks` binary is a one-shot command that connects to the agent for most operations. It is also a Git remote helper when invoked as `git-remote-foks` (typically a symlink).
+
+## Server Architecture
+
+A FOKS server is a suite of independently-running Go services backed by a single PostgreSQL database.
+
+| Service | Description |
+|---------|-------------|
+| `reg` | Public registration and login; no mTLS required |
+| `user` | Authenticated user and team operations; requires mTLS |
+| `probe` | Discovery service — returns the hostchain and service endpoints for this server |
+| `beacon` | Maps a raw host ID (hash of the host's public key) to a DNS name |
+| `merkle_query` | Public Merkle tree queries |
+| `merkle_batcher` | Batches pending operations into a deterministic set for the next Merkle epoch |
+| `merkle_builder` | Applies a batch to update the Merkle tree |
+| `merkle_signer` | Signs the new Merkle tree root |
+| `kv_store` | Server-side key-value store backend; requires mTLS |
+| `queue` | Internal message queue for key-exchange (KEX) between devices |
+| `internal_ca` | Issues mTLS certificates to the backend services |
+
+## Key Hierarchy
+
+```
+  Device key (EdDSA, in agent memory)
+       │
+       ▼
+  Per-User Key (PUK)
+       │
+       ▼
+  Per-Team Key (PTK)  ──── role: owner / admin / member(n) / reader
+       │
+       ▼
+  Encrypted data (KV store, Git repos)
+```
+
+When a device key is revoked, its user key must rotate, which causes all team keys where that user is a member to rotate in turn. The agent handles this cascade automatically.
+
+## Merkle Trees
+
+Every write to the server is eventually included in a Merkle tree. Clients can query this tree to verify that:
+
+- The server has not tampered with data
+- The server has not rolled back to an earlier state
+
+The Merkle tree root is signed by the server's Merkle signer key, which is part of the publicly-verifiable host chain.
+
+## Signature Chains
+
+Each entity (host, user, team) has a **signature chain** — an append-only log of key operations. These chains establish the full history of key additions, rotations, and revocations for that entity. Clients verify chains on connect.
+
+## Federation
+
+Like email, FOKS uses DNS to discover servers. A team can include members from multiple FOKS servers. When servers need to probe each other (e.g., to verify a foreign team member's keys), they use the probe service of the foreign host.
+
+## Protocols
+
+FOKS protocols are defined in the `proto-src/` directory using a custom IDL. Generated Go files live in `proto/`. Protocol groups:
+
+| Group | Used for |
+|-------|----------|
+| `lcl` | Client CLI → local agent (Unix socket) |
+| `rem` | Client agent → server (TLS) |
+| `infra` | Server → server communication |
+| `lib` | Shared types |

@@ -1,0 +1,165 @@
+---
+title: "Configuration Reference"
+description: "FOKS server configuration file and options."
+---
+
+## Overview
+
+FOKS server configuration is written in [Jsonnet](https://jsonnet.org/), a superset of JSON with variables, functions, and imports. All services share a single config file: `conf/foks.jsonnet`.
+
+The file is structured as:
+
+```
+conf/foks.jsonnet          # main config (from source tree, do not edit)
+conf/local.pre.libsonnet   # local overrides applied before the main config
+conf/local.post.libsonnet  # local overrides applied after
+```
+
+`config.bash` generates the `local.*.libsonnet` files from your deployment parameters. To see the fully-resolved configuration:
+
+```bash
+jsonnet conf/foks.jsonnet
+```
+
+## Core settings
+
+These live in `local.pre.libsonnet` and are set by `config.bash`.
+
+### Networking
+
+| Field | Description |
+|-------|-------------|
+| `external_addr` | The DNS hostname clients connect to (set from `--base-hostname`). All services advertise this hostname at different ports. |
+| `bind_addr_ext` | IP address to bind externally-facing services (default `0.0.0.0` in Docker, `127.0.0.1` otherwise) |
+| `bind_addr_int` | IP address to bind internal services |
+| `base_ext_port` | Base port for external services. `probe` listens here; `beacon`, `reg`, `user`, `kv_store`, `merkle_query` follow on `+1` through `+5`. |
+
+### Ports
+
+All external services share `external_addr` and differ only by port:
+
+| Service | Port offset |
+|---------|-------------|
+| `probe` | `base_ext_port + 0` |
+| `beacon` | `base_ext_port + 1` |
+| `reg` | `base_ext_port + 2` |
+| `user` | `base_ext_port + 3` |
+| `kv_store` | `base_ext_port + 4` |
+| `merkle_query` | `base_ext_port + 5` |
+
+Clients discover the exact ports from the `probe` service — no client-side port configuration is required.
+
+### Database
+
+| Field | Description |
+|-------|-------------|
+| `db.host` | PostgreSQL hostname |
+| `db.port` | PostgreSQL port |
+| `db.user` | Database user |
+| `db.password` | Database password |
+| `db.no-tls` | Disable TLS for the DB connection (set `true` for local Docker) |
+
+FOKS uses multiple databases (one per functional area). Each is named in the `db` block of `foks.jsonnet`:
+
+| Database | Purpose |
+|----------|---------|
+| `foks_users` | User accounts, devices, team memberships |
+| `foks_queue_service` | Internal key-exchange message queue |
+| `foks_merkle_tree` | Merkle tree |
+| `foks_merkle_raft` | Merkle coordination |
+| `foks_server_config` | Host configuration, SSO config, plans |
+| `foks_beacon` | Beacon service (HostID → DNS mapping) |
+| `foks_kv_store_N` | Key-value store shards (one or more) |
+
+### Keys and certificates
+
+| Field | Description |
+|-------|-------------|
+| `keys_dir` | Directory containing server private keys |
+| `certs_dir` | Directory containing TLS certificates and CAs |
+| `ca` | Path to the host's root CA certificate |
+| `probe_ca` | Path to the probe CA certificate |
+
+### Viewership mode
+
+Controls whether users on the same host can see each other:
+
+| Mode | Behavior |
+|------|----------|
+| `open` | All users on the host are visible to each other. Admins can add users to teams by name. |
+| `closed` | Users must explicitly allow others to view them. Invites are required for team operations. |
+
+Viewership is set when the host is initialized and can be changed later via the web admin panel.
+
+### Other flags
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `standalone` | `true` | Set `false` for a hosting platform that supports virtual hosts |
+| `localhost_test` | `false` | Enables test mode: overrides DNS to `localhost`, uses local CAs |
+
+## Applying config changes
+
+After editing `local.pre.libsonnet` or `local.post.libsonnet`, restart the affected services:
+
+```bash
+systemctl restart foks-*     # systemd
+# or
+docker compose restart       # Docker Compose
+```
+
+## SSO / OAuth2 configuration
+
+SSO is configured at runtime via the **web admin panel**, not in the Jsonnet config. This means SSO can be enabled, changed, or disabled without restarting any services.
+
+<Note>
+SSO is configured per virtual host (or per standalone server). It is set up through the web admin UI at `foks admin web`.
+</Note>
+
+### Setting up OAuth2 SSO
+
+1. In your identity provider (Okta, Entra ID, Auth0, etc.), create an OAuth2 application with:
+   - **Grant type**: Authorization Code + PKCE
+   - **Redirect URI**: `https://<your-foks-host>/oauth2/callback`
+   - **Scopes**: `openid`, `profile`, `email`, `offline_access`
+
+2. Note the OpenID configuration URL. For Okta this looks like:
+   ```
+   https://your-org.okta.com/application/o/appname/.well-known/openid-configuration
+   ```
+
+3. Open the FOKS web admin panel:
+   ```bash
+   foks admin web
+   ```
+
+4. Navigate to your virtual host's settings → **SSO** and enter:
+
+   | Field | Description |
+   |-------|-------------|
+   | **OpenID Config URL** | Your IDP's `.well-known/openid-configuration` URL |
+   | **Client ID** | OAuth2 application client ID |
+   | **Client Secret** | OAuth2 client secret (optional if using pure PKCE) |
+
+### How SSO authorization works
+
+Once SSO is configured, **every authenticated FOKS request checks with the IDP**:
+
+1. On login, the user is redirected to the IDP and completes the OAuth2 flow. FOKS stores the resulting access and refresh tokens.
+2. On every subsequent authenticated connection, FOKS checks whether the stored access token is still valid.
+3. If the token is near expiry, FOKS proactively exchanges the refresh token with the IDP for a fresh access token.
+4. If the IDP rejects the refresh — because the user was deprovisioned, suspended, or removed from the application — FOKS immediately marks the session as invalid. The user loses access within the access token's remaining TTL (usually minutes, depending on IDP settings).
+
+This means **removing a user from your IDP automatically revokes their FOKS access** without any manual intervention.
+
+<Tip>
+For immediate revocation, set a short access token TTL in your IDP (e.g., 10 minutes). FOKS will attempt a refresh within that window and fail as soon as the IDP rejects the user.
+</Tip>
+
+### SSO and usernames
+
+When SSO is enabled, FOKS usernames are derived from the IDP's `preferred_username` or `email` claim. This keeps FOKS identities in sync with your organization's naming scheme — when you look up `alice@your-foks-host`, you know exactly which IDP account that maps to.
+
+### Disabling SSO
+
+SSO can be disabled from the web admin panel at any time. Existing users will retain their accounts; they will no longer require IDP re-validation on each connection.

@@ -1,0 +1,88 @@
+---
+title: "CLI Overview"
+description: "The foks command-line tool."
+---
+
+## The foks binary
+
+The `foks` binary is the main CLI for FOKS. When invoked as `git-remote-foks` (a symlink), it acts as a Git remote helper.
+
+Most subcommands require the [FOKS agent](/cli/agent) to be running (`foks ctl start`).
+
+## Global flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output in JSON format |
+| `--config <path>` | Path to config file (default: `~/.config/foks/config.json`) |
+| `--home <path>` | FOKS home directory override |
+
+## Top-level commands
+
+| Command | Description |
+|---------|-------------|
+| [`foks signup`](#signup) | Sign up for a new account |
+| [`foks ctl`](/cli/agent) | Control the background agent |
+| [`foks agent`](/cli/agent) | Run the agent directly |
+| [`foks git`](/cli/git) | Manage encrypted Git repositories |
+| [`foks kv`](/cli/kv) | Key-value store |
+| [`foks team`](/cli/team) | Team management |
+| [`foks device`](/cli/device) | Device provisioning and management |
+| [`foks yubikey`](/cli/yubikey) | YubiKey management |
+| [`foks passphrase`](#passphrase) | Passphrase management |
+| [`foks sso`](#sso) | SSO / OAuth2 login |
+| [`foks admin`](#admin) | Admin operations (web panel login) |
+| [`foks status`](#status) | Show agent and account status |
+| [`foks ping`](#ping) | Ping the agent |
+| `foks version` | Print version information |
+
+## signup
+
+```
+foks signup
+```
+
+Interactive signup flow. Prompts for a server (default: `foks.app`), username, and invite code. Creates a new device key and registers it with the server. On servers configured with OAuth2 SSO, signup can be restricted to members of your organization and FOKS usernames are matched to your identity provider's naming scheme.
+
+Your resulting identity is a `user@host` pair, e.g. `alice@foks.app`.
+
+## passphrase
+
+```
+foks passphrase set       # set a passphrase for the first time
+foks passphrase change    # change an existing passphrase
+foks passphrase unlock    # unlock credentials with a passphrase
+```
+
+Passphrases protect device keys at rest. They are stored only on the local machine; the server never sees them.
+
+## sso
+
+```
+foks sso login
+```
+
+Re-authenticate with the identity provider (IdP) on a server that has OAuth2 SSO enabled. Prints a URL to open in your browser to complete the OAuth2 flow. Useful when your session has been invalidated — for example, after the server admin reconfigures SSO or your IDP token has expired beyond the refresh window.
+
+## admin
+
+```
+foks admin web            # open (or print) a login URL for the web admin panel
+foks admin check-link     # verify a login link is still valid
+```
+
+## status
+
+```
+foks status
+```
+
+Shows the current agent state, logged-in user, pending key rotations, and connectivity to the server.
+
+## ping
+
+```
+foks ping
+```
+
+Pings the local agent to confirm it is running and responsive.

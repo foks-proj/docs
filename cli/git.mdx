@@ -1,0 +1,133 @@
+---
+title: "foks git"
+description: "Create and manage end-to-end encrypted Git repositories."
+---
+
+## How it works
+
+FOKS Git repositories are stored in the encrypted key-value store. The `git-remote-foks` binary (a symlink to `foks`) acts as a [Git remote helper](https://git-scm.com/docs/git-remote-helpers), so standard Git commands (`push`, `pull`, `clone`, `fetch`) work unchanged against `foks://` URLs.
+
+Encryption and decryption happen entirely on the client. The server stores only ciphertext.
+
+## Setup
+
+After installing FOKS, create the remote helper symlink (needed once):
+
+```bash
+make git-link
+# or manually:
+ln -s $(which foks) $(dirname $(which foks))/git-remote-foks
+```
+
+Configure your shell so Git can find the helper:
+
+```bash
+eval $(foks git shell-config)
+```
+
+Or add the `foks` binary's directory to your `PATH` permanently.
+
+## Commands
+
+### create
+
+```
+foks git create <reponame> [flags]
+```
+
+Create a new encrypted repository. Prints the `foks://` URL on success.
+
+```bash
+foks git create myrepo
+# Created: foks://foks.app/alice/myrepo
+
+# Create under a team
+foks git create myrepo --team myteam
+# Created: foks://foks.app/myteam/myrepo
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--team <team>` | Create the repo under a team instead of your user |
+
+### ls
+
+```
+foks git ls [flags]
+foks git list [flags]
+```
+
+List your encrypted repositories.
+
+```bash
+foks git ls
+foks git ls --all-teams   # include repos for all teams you belong to
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--all-teams` | List repos for all teams the current user is a member of |
+| `--json` | Output as JSON |
+
+### get-default-branch
+
+```
+foks git get-default-branch <reponame>
+```
+
+Print the default branch for a repository.
+
+### set-default-branch
+
+```
+foks git set-default-branch <reponame> <branch> [--force]
+```
+
+Set the default branch for a repository. The branch must exist unless `--force` is specified.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Set the default branch even if it doesn't exist yet |
+
+### shell-config
+
+```
+foks git shell-config
+foks git env
+```
+
+Print shell environment variables needed for `git-remote-foks` to work. Intended to be evaluated in your shell:
+
+```bash
+eval $(foks git shell-config)
+```
+
+## Using with standard Git
+
+Once the symlink is in place and your shell is configured, use `foks://` URLs as you would any remote:
+
+```bash
+# Clone
+git clone foks://foks.app/alice/myrepo
+
+# Add as a remote
+git remote add origin foks://foks.app/alice/myrepo
+git push origin main
+
+# Fetch
+git fetch origin
+```
+
+The URL format is:
+
+```
+foks://<server>/<owner>/<reponame>
+```
+
+where `<owner>` is your username or a team name.

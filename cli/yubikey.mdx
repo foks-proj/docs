@@ -1,0 +1,84 @@
+---
+title: "foks yubikey"
+description: "Use a YubiKey as a hardware device key."
+---
+
+## Overview
+
+YubiKeys provide hardware-backed security for FOKS device keys. The private key is generated on the YubiKey and never leaves the hardware. FOKS uses PIV slots on the YubiKey via the PCSC interface.
+
+<Warning>
+Testing against a real YubiKey will make destructive changes to its PIV slots. Use a throwaway YubiKey for development and testing.
+</Warning>
+
+## Prerequisites
+
+### Linux
+
+Install the PCSC daemon and make sure your user can access it:
+
+```bash
+sudo apt-get install pcscd
+```
+
+If you get permission errors, see the [installation guide](/installation#linux) for polkit configuration.
+
+### macOS / Windows
+
+PCSC support is built in. No additional setup needed.
+
+## Commands
+
+### new
+
+```
+foks yubikey new
+```
+
+Add a new YubiKey to a previously provisioned FOKS account. Generates a new key pair on the YubiKey and registers it with the server.
+
+### use
+
+```
+foks yubikey use
+```
+
+Use an existing YubiKey on a new device. Useful when you have already registered the YubiKey with your FOKS account and want to provision a new machine using the YubiKey as the device key.
+
+### unlock
+
+```
+foks yubikey unlock
+```
+
+Unlock credentials using the YubiKey. Called automatically when credentials are needed, but can be run manually to pre-unlock.
+
+### set-pin-and-puk
+
+```
+foks yubikey set-pin-and-puk
+```
+
+Set the PIN and PUK for the YubiKey. The PIN is required for signing operations; the PUK is used to unblock a PIN-locked YubiKey.
+
+### recover
+
+```
+foks yubikey recover
+```
+
+Recover a YubiKey that has been PIN-blocked (after too many incorrect PIN attempts). Requires the PUK.
+
+### explore
+
+```
+foks yubikey explore
+```
+
+Inspect the current state of YubiKey slots and certificates. Useful for debugging.
+
+## Security Notes
+
+- YubiKey device keys are ECDSA P-256 (as exposed by the PIV applet), rather than Ed25519 used by software keys
+- The YubiKey's private key never leaves the hardware; FOKS only sends data to be signed
+- If a YubiKey is lost, revoke it via the web admin panel (`foks admin web`); this triggers key rotation for all affected teams

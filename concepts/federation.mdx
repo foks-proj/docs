@@ -1,0 +1,51 @@
+---
+title: "Federation"
+description: "How FOKS servers discover each other and how teams can span multiple servers."
+---
+
+## Overview
+
+FOKS is federated: many independent servers can exist, each administered separately, but they speak the same protocol. Like email, a user on `foks.app` can be a member of a team hosted on `corp.example.com`.
+
+Users are identified as `user@host` pairs — e.g. `alice@foks.app` — so identity is scoped to the server, not globally unique. This mirrors how email works and avoids any central naming authority.
+
+## Host Discovery
+
+Each FOKS server has a permanent **HostID** — the hash of its initial public signing key. There are two ways to look up a host:
+
+| Direction | Method |
+|-----------|--------|
+| DNS name → HostID | Connect to the **probe** service at the DNS name; it returns the host chain and HostID |
+| HostID → DNS name | Query the **beacon** service (currently `beacon.foks.pub`) with the HostID to get the DNS name |
+
+This two-way lookup means a client can find a server by name *or* by its cryptographic identity.
+
+## Host Chains
+
+A host chain is an append-only signed log of key operations for a server. It establishes the authoritative history of:
+
+- The initial HostKey
+- Delegated keys (TLS CA, Merkle signer, Metadata signer)
+- Key rotations over time
+
+Clients verify the host chain on first connect and check for consistency on subsequent connects. This prevents a compromised server from substituting a different key after the fact.
+
+## Cross-Server Teams
+
+When Alice on `foks.app` invites Bob from `corp.example.com` to her team:
+
+1. Alice's client fetches and verifies Bob's host chain from `corp.example.com`
+2. Bob's public key is added to Alice's team with the appropriate role
+3. When Bob's client later accesses the team, it probes `foks.app` to verify Alice's host chain
+
+Servers probe each other when needed for team operations — this is handled automatically by the agent.
+
+## Virtual Hosts
+
+A single physical FOKS server can host multiple **virtual hosts** — separate FOKS instances that each have their own HostID, users, and data, but share the same underlying infrastructure. This is how `foks.app` works: users get their own isolated FOKS instance without needing to operate their own hardware.
+
+Virtual hosts are configured at the platform level. See [Virtual Hosts](/server/virtual-hosts) for details.
+
+## Running Your Own Server
+
+Because FOKS is open-source and federated, you can run your own server and remain fully interoperable with `foks.app` and any other FOKS server. See [Self-Hosting](/server/overview).

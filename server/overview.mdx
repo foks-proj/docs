@@ -1,0 +1,83 @@
+---
+title: "Self-Hosting Overview"
+description: "Run your own FOKS server."
+---
+
+## Why self-host?
+
+- **Full control** — your data lives on your infrastructure
+- **Custom domain** — host at `foks.yourcompany.com`
+- **Virtual hosting** — offer FOKS to your team or customers under a managed subdomain
+- **Air-gapped / private network** — run FOKS inside a firewall without any internet dependency
+- **Open source** — MIT license, no vendor lock-in
+
+## What you need
+
+- A modern Linux server (or Docker-capable host)
+- A PostgreSQL 15+ database (or let the setup script create a Docker container)
+- A domain name with DNS control (for production)
+- Go 1.24+ and a C compiler (if building from source)
+
+## Deployment options
+
+| Mode | Best for |
+|------|----------|
+| Docker Compose | Quick start, single machine |
+| systemd | Production Linux, bare metal |
+| PM2 | Development and testing |
+
+## Quick install
+
+The fastest path to a running server is `foks-tool standup`. It requires Docker and prompts interactively for a hostname, HTTP port, database port, and viewership mode, then creates all keys, certificates, databases, and a Docker Compose file in one shot:
+
+```bash
+foks-tool standup
+```
+
+After standup completes, subsequent restarts are just:
+
+```bash
+docker compose up
+```
+
+For full control over the setup process, see the [guided setup](/server/quickstart).
+
+## Server components
+
+A FOKS server consists of these processes:
+
+| Service | External? | Description |
+|---------|-----------|-------------|
+| `probe` | Yes | Discovery — returns host chain and service endpoints |
+| `reg` | Yes | Registration and public (unauthenticated) operations |
+| `user` | Yes (mTLS) | Authenticated user and team operations |
+| `merkle_query` | Yes | Public Merkle tree queries |
+| `kv_store` | Yes (mTLS) | Key-value store backend |
+| `beacon` | Yes | Maps HostID to DNS name (global service) |
+| `merkle_batcher` | Internal | Batches pending Merkle updates |
+| `merkle_builder` | Internal | Applies batches to the Merkle tree |
+| `merkle_signer` | Internal | Signs the new Merkle root |
+| `queue` | Internal | Message queue for key exchange |
+| `internal_ca` | Internal | Issues mTLS certs to backend services |
+
+All services are statically-linked Go binaries. The only external dependency is PostgreSQL.
+
+## Architecture modes
+
+When setting up, you choose three axes:
+
+**Network mode** — how the server connects to the world:
+- `prod` — connected to the public internet
+- `dev` — local machine exposed via SSH reverse proxy (for development with real TLS certs)
+- `test` — fully local, uses self-signed certs
+
+**Run mode** — how processes are managed:
+- `systemd` — for production Linux
+- `docker_compose` — for Docker-based deployments
+- `pm2` — for development
+
+**Server mode** — the deployment topology:
+- `standalone` — a single FOKS instance
+- `hosting_platform` — a base instance that can spawn virtual hosts
+
+See [Configuration](/server/configuration) for details.

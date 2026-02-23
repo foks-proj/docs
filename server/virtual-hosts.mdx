@@ -1,0 +1,86 @@
+---
+title: "Virtual Hosts"
+description: "Run multiple isolated FOKS instances on a single server."
+---
+
+## Overview
+
+A FOKS server running in `hosting_platform` mode can host many **virtual hosts** — isolated FOKS instances that each have their own HostID, users, teams, and data, but share the underlying infrastructure (processes and database cluster).
+
+This is how `foks.app` operates: each organization or team gets their own virtual host with its own DNS name and cryptographic identity, without needing to operate separate hardware.
+
+## How virtual hosts work
+
+Each virtual host has:
+
+- A unique **HostID** derived from its own HostKey — cryptographically distinct from the primary host
+- Its own **DNS name** (e.g., `myorg.foks.app`)
+- Isolated users, teams, and data
+- Its own invite codes, viewership settings, and (optionally) SSO configuration
+
+Internally, virtual hosts share the same backend services (`user`, `reg`, `kv_store`, etc.) as the primary host. The mTLS handshake carries the HostID so the backend can route each request to the correct virtual host's data partition.
+
+The virtual host's host chain uses an **Alias** link type to point its non-probe keys (user service CA, Merkle signer, etc.) to those of the primary host. Clients verify this chain and trust the virtual host accordingly.
+
+## Creating a virtual host
+
+Virtual hosts are created and managed through the **web admin panel**:
+
+```bash
+foks admin web
+```
+
+From there, navigate to **Virtual Hosts → Create**. You will be prompted for:
+
+- A subdomain or custom domain
+- Viewership mode (`open` or `closed`)
+- Optional SSO configuration
+
+The platform generates a new key pair, HostID, and host chain for the virtual host automatically.
+
+## Deployment modes
+
+### hosting_platform
+
+Set `--server-mode hosting_platform` when running `config.bash`. This starts:
+
+- The **primary host** — the base instance (not intended for end users)
+- A **management host** (e.g., `vh.foks.app`) — where admins create and manage virtual hosts
+- A **big-top host** (e.g., `foks.app`) — a general-purpose instance for individual users and small teams
+
+Additional virtual hosts can be created from the management host at runtime.
+
+### standalone
+
+In `standalone` mode there are no virtual hosts — the server runs as a single instance. This is appropriate for a dedicated team server or self-hosted deployment.
+
+## DNS for virtual hosts
+
+Each virtual host needs a DNS record pointing to the same server IP:
+
+```
+myorg.foks.app    A    <server-ip>
+```
+
+The FOKS probe service routes clients to the correct virtual host based on the hostname in the TLS SNI, which maps to the virtual host's HostID.
+
+## Per-virtual-host configuration
+
+The following can be configured independently for each virtual host via the web admin panel:
+
+| Setting | Description |
+|---------|-------------|
+| Viewership mode | Whether users can see each other (`open`, `closed`) |
+| Invite code regime | Whether signups require an invite code |
+| SSO / OAuth2 | Identity provider integration (see [Configuration](/server/configuration#sso--oauth2-configuration)) |
+| Plans and quotas | Storage limits and feature access |
+
+## Custom domains (vanity hosts)
+
+Virtual hosts can use custom domains (e.g., `foks.yourcompany.com`) rather than subdomains of the platform. This requires:
+
+1. A DNS record pointing your domain to the server IP
+2. A TLS certificate for that domain (obtained via Let's Encrypt or provided manually)
+3. Registering the custom domain in the web admin panel
+
+Custom domain configuration is available on the `hosting_platform` tier at `foks.cloud`.

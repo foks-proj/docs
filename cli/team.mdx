@@ -1,0 +1,157 @@
+---
+title: "foks team"
+description: "Create and manage teams with role-based access control."
+---
+
+## Overview
+
+Teams allow multiple users to share encrypted data (KV store entries, Git repos) with fine-grained role-based access control. Teams can span multiple FOKS servers, and teams can be nested — a team can itself be a member of another team.
+
+## Roles
+
+| Role | Permissions |
+|------|-------------|
+| `owner` | Full control, can add/remove admins and owners, delete the team |
+| `admin` | Can invite users, change roles of members and below |
+| `member(n)` | Read and write access to team data at the `member` level |
+| `reader` | Read-only access to team data at the `reader` level |
+
+The `member` role carries a signed integer sub-level `n` in the range **-16384 to 16384**, defaulting to `0` (written as plain `member`). Sub-levels are linearizable: `member(-1)` is lower privilege than `member(0)`, which is lower than `member(1)`. This is useful for granting bots or automated processes a distinct privilege tier within the member band — for example, a deploy bot might be `member(-1)` to ensure it can only access data explicitly shared at that level or below.
+
+## Commands
+
+### create
+
+```
+foks team create <team-name>
+foks team mk <team-name>
+```
+
+Create a new team. The creating user becomes the owner.
+
+```bash
+foks team create engineering
+```
+
+### invite
+
+```
+foks team invite <team>
+foks team inv <team>
+```
+
+Generate an invite code for a team. Share the code with intended recipients via any channel (email, chat, etc.). Requires `admin` role or above.
+
+```bash
+foks team invite engineering
+# Prints an invite code
+```
+
+The same invite code can be used by multiple people.
+
+### accept
+
+```
+foks team accept <invite-code>
+```
+
+Accept a team invite using the code shared by an admin.
+
+```bash
+foks team accept eyJh...
+```
+
+### admit
+
+```
+foks team admit <team> <rsvp>[/<role>] [<rsvp2>[/<role2>] ...]
+```
+
+Admit a party (user or team) that has previously accepted an invite. Optionally specify a role; defaults to `member`.
+
+```bash
+foks team admit engineering bob@foks.app/admin
+foks team admit engineering alice@foks.app carol@foks.app
+```
+
+### add
+
+```
+foks team add <team> <user1> [<user2> ...]
+```
+
+Add a user directly to a team on an **open-view** host (where user listings are public). Requires `admin` role or above.
+
+```bash
+foks team add engineering alice@foks.app
+```
+
+<Note>
+On closed-view hosts, use `invite` + `admit` instead.
+</Note>
+
+### change-roles
+
+```
+foks team change-roles <team> <change1> [<change2> ...]
+```
+
+Change the role of one or more users in a team. Changes are specified as `user@host/newrole`. To remove a user, set the role to `none`.
+
+```bash
+foks team change-roles engineering alice@foks.app/admin
+foks team change-roles engineering bob@foks.app/none    # removes bob
+```
+
+### list
+
+```
+foks team list <team>
+foks team ls <team>
+```
+
+List the members of a team.
+
+```bash
+foks team list engineering
+```
+
+### list-memberships
+
+```
+foks team list-memberships
+```
+
+List all teams the current user is a member of.
+
+### index-range
+
+```
+foks team index-range
+```
+
+Low-level team index range management. Used for administrative purposes.
+
+## Federated Teams
+
+Teams can include members from different FOKS servers. When inviting a user from another server, use their fully-qualified name:
+
+```
+username@serverhostname
+```
+
+For example:
+
+```bash
+foks team invite myteam
+# Share the invite code with alice@corp.example.com
+# Alice runs: foks team accept <code>
+```
+
+## Nested Teams
+
+A team can be added as a member of another team. This allows hierarchical permission structures. For example, an `infrastructure` team could be a member of a `platform` team with read access to platform secrets.
+
+```bash
+foks team add platform infrastructure@foks.app/member
+```

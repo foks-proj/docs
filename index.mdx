@@ -1,97 +1,66 @@
 ---
 title: "Introduction"
-description: "Welcome to the new home for your documentation"
+description: "FOKS is an open-source, federated protocol for end-to-end encrypted Git hosting and secret storage."
 ---
 
-## Setting up
+<Warning>
+FOKS is currently in **beta**. It is fully usable, but there is some risk of data loss. Use accordingly.
+</Warning>
 
-Get your documentation site up and running in minutes.
+## What is FOKS?
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+**FOKS** (Federated Open Key Service) is an open-source system for sharing and managing cryptographic keys across devices and teams. The simplest summary: *Keybase, but with federation, SSO, and YubiKey support, and fully open-source.*
 
-## Make it yours
+FOKS provides:
 
-Design a docs site that looks great and empowers your users.
+- **End-to-end encrypted Git repositories** — source code and commit history are encrypted on your machine before reaching any server
+- **Encrypted key-value store** — store secrets, configs, and files that sync across devices and teams
+- **Federated team management** — teams can span multiple servers; role-based access with automatic key rotation on membership changes
+- **Multi-device support** — provision new devices, YubiKeys, and manage them all in one place
+- **Single Sign-On** — OAuth2-based SSO for enterprise deployments
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+Everything is encrypted client-side. The server never sees your data or filenames in plaintext.
+
+Users are identified as `user@host` pairs — like email addresses — so a user on `foks.app` and a user on `corp.example.com` can share the same team.
+
+## Key Properties
+
+<CardGroup cols={2}>
+  <Card title="End-to-end encrypted" icon="lock">
+    Data is encrypted on your machine before it is sent to any server. Servers store only ciphertext.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Open source" icon="code">
+    All code is released under the MIT License. Run your own server or use the hosted service at foks.app.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Federated" icon="network-wired">
+    Like email, FOKS consists of many independently-operated servers speaking the same protocol. Teams can span servers.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Post-quantum cryptography" icon="shield">
+    Combines Curve25519 with ML-KEM algorithms to provide resistance against quantum attacks.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Get Started
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Install FOKS" icon="download" href="/installation">
+    Install the `foks` CLI on macOS, Linux, or Windows.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Sign up, create an encrypted Git repo, and push your first commit.
+  </Card>
+  <Card title="CLI Reference" icon="terminal" href="/cli/overview">
+    Full reference for all `foks` commands.
+  </Card>
+  <Card title="Self-hosting" icon="server" href="/server/overview">
+    Run your own FOKS server for your team or organization.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## How It Works
 
-## Need inspiration?
+FOKS uses a hierarchical key structure. Each device has its own key pair. User keys are derived from device keys. Team keys are derived from user keys. This chain means that when a device or user is revoked, all keys further up the tree rotate automatically.
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+Merkle trees prevent servers from tampering with or rolling back data. Every operation is auditable through signature chains.
+
+See [Architecture](/concepts/architecture) for a deeper explanation.

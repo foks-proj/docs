@@ -1,0 +1,82 @@
+---
+title: "foks agent & ctl"
+description: "The FOKS background agent and how to control it."
+---
+
+## Overview
+
+The FOKS **agent** is a persistent background process that:
+
+- Stores device private keys in memory
+- Maintains an authenticated session with the server
+- Performs background key rotation when devices or users are revoked
+- Serves the local CLI and `git-remote-foks` over a Unix socket (or Windows named pipe)
+
+It is conceptually similar to `ssh-agent`.
+
+## Starting the agent
+
+`foks ctl start` registers the agent with your system's process manager (launchd on macOS, systemd on Linux, the Windows Registry on Windows) so it starts automatically at login.
+
+```bash
+foks ctl start
+```
+
+## ctl commands
+
+```
+foks ctl start      # register and start the agent via system daemon manager
+foks ctl stop       # stop the agent via system daemon manager
+foks ctl restart    # restart the agent via system daemon manager
+foks ctl status     # show agent status via system daemon manager
+foks ctl shutdown   # send a shutdown RPC to the running agent
+foks ctl socket     # print the path to the agent's Unix socket
+```
+
+## Running the agent directly
+
+For debugging or testing, you can run the agent in the foreground:
+
+```bash
+foks agent
+```
+
+The agent accepts flags to configure its behavior:
+
+| Flag | Description |
+|------|-------------|
+| `--socket <path>` | Override the Unix socket path |
+| `--home <path>` | Override the FOKS home directory |
+
+## How the CLI talks to the agent
+
+All `foks` subcommands that need network access (git, kv, team, etc.) connect to the running agent over the local socket, send an RPC, and print the result. The agent handles the authenticated connection to the server.
+
+The socket path can be found with:
+
+```bash
+foks ctl socket
+```
+
+## Agent startup options
+
+The agent automatically starts the correct services based on what the CLI needs. For example, `foks kv put` requires a logged-in user with unlocked credentials; the agent will prompt for a passphrase or YubiKey touch if needed.
+
+## Troubleshooting
+
+**Agent not running:**
+```bash
+foks ctl status
+foks ctl start
+```
+
+**Stuck or unresponsive:**
+```bash
+foks ctl restart
+```
+
+**Check the socket:**
+```bash
+foks ctl socket
+ls -la $(foks ctl socket)
+```

@@ -1,0 +1,132 @@
+---
+title: "Server Setup"
+description: "Step-by-step guide to setting up your own FOKS server."
+---
+
+## Prerequisites
+
+- Linux server (or Docker on any platform)
+- PostgreSQL 15+ (or Docker to create one automatically)
+- Go 1.24+ and a C compiler
+- A domain name (for production)
+
+## Step 1: Get the source code
+
+```bash
+git clone https://github.com/foks-proj/go-foks.git
+cd go-foks
+```
+
+## Step 2: Create a work directory
+
+```bash
+mkdir /path/to/workdir
+```
+
+This directory will hold FOKS binaries, configuration files, server keys, and scripts.
+
+## Step 3: Run config.bash
+
+`config.bash` generates configuration files and scripts based on your deployment choices.
+
+```bash
+cd /path/to/workdir
+/path/to/go-foks/scripts/srv/config.bash \
+    --network-mode prod \
+    --run-mode systemd \
+    --server-mode standalone \
+    --base-hostname foks.yourdomain.com
+```
+
+### Key options
+
+| Option | Values | Description |
+|--------|--------|-------------|
+| `--network-mode` | `prod`, `dev`, `test` | How the server connects to the network |
+| `--run-mode` | `systemd`, `docker_compose`, `pm2` | How processes are managed |
+| `--server-mode` | `standalone`, `hosting_platform` | Deployment topology |
+| `--base-hostname` | your domain | The DNS hostname all services advertise (becomes `external_addr`) |
+| `--db-byo` | (flag) | Use an existing PostgreSQL instance instead of Docker |
+
+<Tip>
+Read `config.bash` to understand all available options — it's written to be readable documentation.
+</Tip>
+
+### Output files
+
+`config.bash` produces:
+
+| File | Description |
+|------|-------------|
+| `conf/foks.jsonnet` | Main FOKS config (Jsonnet format, shared among all services) |
+| `conf/local.pre.libsonnet` | Generated local overrides (hostname, ports, DB credentials) |
+| `conf/local.post.libsonnet` | Generated local overrides (encryption keys, etc.) |
+| `env.sh` | Environment variables for the next step |
+| `scripts/build.bash` | The build/setup script |
+
+Verify the generated config:
+
+```bash
+jsonnet conf/foks.jsonnet   # requires the jsonnet tool
+```
+
+## Step 4: Run build.bash
+
+`build.bash` runs the setup steps one at a time:
+
+```bash
+cd /path/to/workdir
+./scripts/build.bash next    # run the next pending step
+```
+
+Run `next` repeatedly until setup completes. The sequence of steps:
+
+1. `setup_tools` — install required tools
+2. `make_web_assets` — build the admin web UI
+3. `create_docker_db` — create a PostgreSQL container (skipped if `--db-byo`)
+4. `create_foks_user` — create the database user
+5. `init_db` — initialize the database schema
+6. `gen_probe_ca` — generate the probe CA
+7. `gen_cks_cas` — generate chain key store CAs
+8. `make_host_chain` — generate the host's signing chain and HostID
+9. `issue_frontend_cert` — TLS certificate for public-facing services
+10. `issue_backend_cert` — mTLS certificates for internal services
+11. `issue_probe_cert` — certificate for the probe service
+12. `issue_beacon_cert` — certificate for beacon registration
+13. `init_merkle_tree` — initialize the Merkle tree
+14. `write_public_zone` — write the zone file (service endpoints)
+15. `make_invite_code` — generate an initial invite code
+16. `write_dbkeys` — write database encryption keys
+17. `make_systemd_units` — generate systemd unit files
+18. `install_systemd_units` — install them
+19. `start_systemd` — start all services
+20. `beacon_register` — register this host with the global beacon
+
+<Tip>
+Read `build.bash` — it's also written as readable documentation for the setup process.
+</Tip>
+
+## Step 5: Verify
+
+After setup, verify that all services are running:
+
+```bash
+systemctl status foks-*     # for systemd
+# or
+docker compose ps           # for docker compose
+```
+
+## DNS configuration
+
+All FOKS services run on the same machine under the same hostname (`--base-hostname`), differentiated by port. You only need a single A record:
+
+```
+foks.yourdomain.com   A   <your-server-ip>
+```
+
+The probe service runs on port 443 (the base port); the other services (`reg`, `user`, `kv_store`, `merkle_query`) run on consecutive ports above it. Clients discover these ports automatically via the probe service — no additional DNS setup is needed.
+
+## Next steps
+
+- [Configuration reference](/server/configuration)
+- [Virtual hosts](/server/virtual-hosts)

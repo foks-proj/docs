@@ -1,0 +1,76 @@
+---
+title: "Security Model"
+description: "Cryptographic primitives, threat model, and trust assumptions."
+---
+
+## Threat Model
+
+FOKS is designed to protect your data even if a server is compromised, under the **semi-honest server** assumption: the server is assumed to correctly overwrite and discard data it is asked to delete, but may otherwise try to read or tamper with data.
+
+What FOKS protects against:
+- A server reading file contents or file names
+- A server injecting or swapping data without detection
+- A server rolling back data (via Merkle tree commitments)
+- A compromised old device key being used to decrypt future data (forward secrecy via key rotation)
+
+What FOKS does not fully protect against:
+- A server that retains old ciphertext and later obtains a revoked device key — it can decrypt data that was encrypted before the rotation. This is an inherent limitation of server-side storage; the assumption is the server deletes old data on rotation.
+
+## Cryptographic Primitives
+
+| Primitive | Algorithm |
+|-----------|-----------|
+| Asymmetric encryption / key agreement | Curve25519 (X25519) + ML-KEM (post-quantum) |
+| Signatures | Ed25519 |
+| Symmetric encryption | XSalsa20-Poly1305 (NaCl secretbox) |
+| Key derivation | HMAC-SHA512 |
+| Hashing | SHA-256 / SHA-512 |
+
+FOKS uses a hybrid post-quantum approach: Curve25519 for classical security and ML-KEM-768 for post-quantum security. Both are combined so that an attacker needs to break both to recover keys.
+
+## Entity IDs
+
+Every principal in FOKS (host, user, team, device, TLS cert) is identified by an **EntityID**: a compact public key representation.
+
+- Standard entities: 33 bytes (1-byte type tag + 32-byte Ed25519 public key)
+- YubiKey entities: 34 bytes (uses ECDSA P-256, which is 33-byte compressed point)
+
+The hash of a host's initial public key becomes its permanent **HostID**, even through key rotations.
+
+## Key-Value Store Encryption
+
+The KV store uses a two-layer encryption scheme:
+
+**Directories** have a random 32-byte seed encrypted under the team's per-team key (PTK). From the seed, three sub-keys are derived via HMAC:
+- `r_box` — symmetric key used to encrypt directory entry names for listing
+- `r_mac` — used to compute per-name nonces and HMACs for efficient server-side lookup without revealing names
+- `r_comm` — used for commitments
+
+**File names** are handled with two complementary operations: an HMAC of the name is used by the server for efficient lookups, while a separate symmetric encryption of the name allows listing a directory without revealing names to the server.
+
+**Small files** (≤128 bytes) are encrypted directly with the PTK using a random nonce.
+
+**Large files** use an intermediate per-file random seed encrypted under the PTK (the "KeyBox"), and the file data encrypted under a key derived from that seed (the "DataBox"). On key rotation, only the small KeyBox needs re-encryption; the DataBox can be re-keyed separately.
+
+## Key Rotation
+
+Key rotation is triggered automatically when:
+- A device is revoked (`foks device` commands)
+- A YubiKey is removed
+- A user is removed from a team
+
+The agent performs rotations in the background. Pending rotations are visible via `foks status`.
+
+## YubiKey Support
+
+YubiKey hardware tokens can be used as device keys. The YubiKey stores an ECDSA P-256 private key that never leaves the hardware. FOKS uses PIV slots on the YubiKey.
+
+See [YubiKey commands](/cli/yubikey) for setup instructions.
+
+## Passphrase Protection
+
+Device keys can optionally be protected by a local passphrase. The passphrase is used to unlock an encrypted key store on disk; the key itself is never transmitted to the server. See `foks passphrase set`.
+
+## Trust on First Use
+
+When connecting to a new server, FOKS performs trust-on-first-use (TOFU) for the server's host chain. On subsequent connections, the client verifies that the host chain is consistent with what it previously saw, preventing rollback attacks.

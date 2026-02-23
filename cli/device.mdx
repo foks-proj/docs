@@ -1,0 +1,51 @@
+---
+title: "foks device"
+description: "Provision and manage devices."
+---
+
+## Overview
+
+Each machine running FOKS has its own device key. When you sign up, a device key is created for that machine. To use FOKS on a second machine, you provision it using an existing device as a helper — this is the key-exchange (KEX) process.
+
+## Commands
+
+### provision
+
+```
+foks device provision
+```
+
+Provision this device for FOKS using an existing provisioned device as a helper.
+
+Run this on the **new** device. It will display a code. On an already-provisioned device, approve the request:
+
+```bash
+# On the new device
+foks device provision
+
+# Follow the prompts — on the existing device, you'll be asked to approve
+```
+
+The provisioning flow uses a secure key-exchange protocol. The new device's key is added to your user key set, and team keys are shared with the new device automatically.
+
+### make-permanent
+
+```
+foks device make-permanent
+```
+
+Promote a temporary device key to a permanent one. Temporary keys are created during some provisioning flows and expire after a short time.
+
+## Revoking a Device
+
+To revoke a device (e.g., a lost or stolen laptop), use the web admin panel or (coming soon) a CLI command. Revoking a device triggers key rotation for all teams the user belongs to.
+
+```bash
+foks admin web    # open the admin panel to manage devices
+```
+
+After revocation, the FOKS agent on other devices will detect the revocation and rotate all affected keys in the background.
+
+## YubiKey Devices
+
+YubiKey hardware tokens act as a special kind of device. See [YubiKey](/cli/yubikey) for details.
