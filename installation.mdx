@@ -5,92 +5,68 @@ description: "Install the FOKS CLI on your platform."
 
 ## Managed Installers
 
-The easiest way to install FOKS is via a platform package.
-
 <Tabs>
   <Tab title="macOS">
-    Download the macOS installer from [foks.pub](https://foks.pub) or install via Homebrew (coming soon).
-
-    After installation, create the git remote helper symlink (needed once):
-
     ```bash
-    make git-link
-    # or manually:
-    ln -s $(which foks) $(dirname $(which foks))/git-remote-foks
+    brew install foks
     ```
+
+    The Homebrew package is signed by the FOKS developers, allowing keychain access without repeated password prompts.
   </Tab>
   <Tab title="Debian / Ubuntu">
     ```bash
-    # Add the FOKS apt repository, then:
-    sudo apt-get install foks
+    curl -fsSL https://pkgs.foks.pub/install.sh | sh
     ```
 
-    You also need the PCSC lite library for YubiKey support:
+    This registers the FOKS apt repository. Subsequent updates use the normal package manager:
 
     ```bash
-    sudo apt-get install libpcsclite-dev pcscd
+    sudo apt-get install foks
     ```
   </Tab>
   <Tab title="Fedora">
+    ```bash
+    curl -fsSL https://pkgs.foks.pub/install.sh | sh
+    ```
+
+    This registers the FOKS dnf repository. Subsequent updates:
+
     ```bash
     sudo dnf install foks
     ```
   </Tab>
   <Tab title="Arch Linux">
     ```bash
-    yay -S foks
+    yay -Sy go-foks
     ```
   </Tab>
   <Tab title="Windows">
-    Download the Windows installer from [foks.pub](https://foks.pub).
+    ```
+    winget install foks
+    ```
+  </Tab>
+  <Tab title="Static Linux Binary">
+    For systems without a supported package manager:
 
-    On Windows, `git-remote-foks` is a copy of (not a symlink to) the `foks.exe` binary.
+    ```bash
+    curl -fsSL https://pkgs.foks.pub/install-static.sh | sh
+    ```
+
+    Static binaries do not auto-update.
   </Tab>
 </Tabs>
 
 ## Build from Source
 
-Requires Go 1.24 or later.
+Requires Go 1.23+ with CGO enabled (for SQLite).
 
 ```bash
-git clone https://github.com/foks-proj/go-foks.git
-cd go-foks
-make             # builds for the local platform, installs into $GOPATH/bin
-make git-link    # creates the git-remote-foks symlink (needed once)
+go install github.com/foks-proj/go-foks/client/foks@latest
+(cd $(dirname $(which foks)) && ln -s foks git-remote-foks)
+foks ctl start
 ```
 
-### Linux prerequisites
-
-On Linux you need the PCSC lite development library before building:
-
-```bash
-sudo apt-get install gcc make libpcsclite-dev pkg-config
-```
-
-For YubiKey support at runtime:
-
-```bash
-sudo apt-get install pcscd
-```
-
-If your distribution restricts access to `pcscd` for non-root users, add a polkit rule:
-
-```bash
-cat <<EOF > /etc/polkit-1/rules.d/90-pcscd.rules
-polkit.addRule(function(action, subject) {
-    if (action.id == "org.debian.pcsc-lite.access_pcsc" &&
-        subject.isInGroup("pcscd")) {
-        return polkit.Result.YES;
-    }
-});
-EOF
-
-groupadd pcscd
-usermod -aG pcscd $USER
-systemctl daemon-reload
-systemctl restart polkit
-systemctl restart pcscd
-```
+The symlink makes `foks` available as a Git remote helper under the name `git-remote-foks`.
 
 ## Verify Installation
 
