@@ -38,6 +38,7 @@
               "cli/team",
               "cli/device",
               "cli/yubikey",
+              "cli/mcp",
               "cli/agent",
               "cli/bot"
             ]

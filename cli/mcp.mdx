@@ -1,0 +1,108 @@
+---
+title: "foks mcp"
+description: "Model Context Protocol (MCP) servers for LLM tool integration."
+---
+
+## Overview
+
+FOKS provides [MCP](https://modelcontextprotocol.io/) servers that expose KV store and team operations to LLM tools like [Claude Code](https://claude.ai/claude-code). MCP servers run over stdio, so they can be plugged into any MCP-compatible client.
+
+There are currently two MCP servers:
+
+| Server | Command | Description |
+|--------|---------|-------------|
+| `foks-kv` | `foks mcp kv` | Encrypted key-value store operations |
+| `foks-team` | `foks mcp team` | Team listing and membership queries |
+
+## Setup
+
+### Claude Code
+
+Add the servers to your `~/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "foks-kv": {
+      "command": "foks",
+      "args": ["mcp", "kv"]
+    },
+    "foks-team": {
+      "command": "foks",
+      "args": ["mcp", "team"]
+    }
+  }
+}
+```
+
+Then restart Claude Code or run `/mcp` to pick up the new servers.
+
+### Other MCP Clients
+
+Any MCP client that supports stdio transports can use these servers. Point it at the `foks` binary with the appropriate `mcp` subcommand.
+
+## foks mcp kv
+
+Exposes the FOKS encrypted key-value store. All operations accept an optional `team` parameter to act on behalf of a team instead of the personal store.
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `list` | List contents of a directory |
+| `get` | Read file contents |
+| `put` | Write file contents |
+| `mkdir` | Create a directory |
+| `rm` | Remove a file or directory |
+| `mv` | Move or rename an entry |
+| `stat` | Get metadata for an entry |
+| `usage` | Show storage usage |
+
+### Examples
+
+Once configured, an LLM can interact with your encrypted store directly:
+
+```
+> List what's in my KV store
+(calls list with path "/")
+
+> Store this API key for me
+(calls put with path "/secrets/api-key" and content)
+
+> What's in the team's shared config?
+(calls get with path "/configs/app.json" and team "engineering")
+```
+
+The `team` parameter works on all tools, allowing the LLM to read and write team-scoped data:
+
+```
+> Put this deploy config in the devops team store
+(calls put with path "/deploy/config.yml", content, and team "devops")
+```
+
+## foks mcp team
+
+Exposes team listing and membership queries.
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `list` | List the members of a team (requires team name) |
+| `list-memberships` | List all teams the current user is a member of |
+
+### Examples
+
+```
+> What teams am I on?
+(calls list-memberships)
+
+> Who's in the engineering team?
+(calls list with team "engineering")
+```
+
+### Output Format
+
+**list** returns tab-separated rows: `name`, `host`, `src-role`, `dst-role`, `added-time`.
+
+**list-memberships** returns tab-separated rows: `team`, `src-role`, `dst-role`, `via`, `index-range`.

@@ -68,6 +68,36 @@ foks ctl start
 
 The symlink makes `foks` available as a Git remote helper under the name `git-remote-foks`.
 
+## Linux: YubiKey Setup
+
+YubiKey support requires the PCSC lite daemon and development library:
+
+```bash
+sudo apt-get install libpcsclite-dev pcscd        # Debian/Ubuntu
+sudo dnf install pcsc-lite-devel pcsc-lite         # Fedora
+```
+
+If your distribution restricts access to `pcscd` for non-root users, add a polkit rule:
+
+```bash
+cat <<EOF > /etc/polkit-1/rules.d/90-pcscd.rules
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.debian.pcsc-lite.access_pcsc" &&
+        subject.isInGroup("pcscd")) {
+        return polkit.Result.YES;
+    }
+});
+EOF
+
+sudo groupadd pcscd
+sudo usermod -aG pcscd $USER
+sudo systemctl daemon-reload
+sudo systemctl restart polkit
+sudo systemctl restart pcscd
+```
+
+Log out and back in for the group change to take effect.
+
 ## Verify Installation
 
 ```bash
